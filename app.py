@@ -55,10 +55,10 @@ def admin():
     if request.method == 'POST':
         data = request.json
         action = data.get('action')
-        password = data.get('password')
+        admin_password = data.get('password')
         
         # Проверка пароля админки
-        if password != 'benzolaloh':
+        if admin_password != 'benzolaloh':
             return jsonify({'success': False, 'message': 'Неверный пароль'}), 401
         
         if action == 'get_users':
@@ -67,8 +67,8 @@ def admin():
         
         elif action == 'add_user':
             username = data.get('username')
-            password = data.get('password')
-            if add_user(username, password):
+            user_password = data.get('user_password')
+            if add_user(username, user_password):
                 return jsonify({'success': True})
             return jsonify({'success': False, 'message': 'Пользователь уже существует'}), 400
         
