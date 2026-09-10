@@ -65,8 +65,10 @@
             <div id="clientsTab" class="tab-content" style="display: none;">
                 <div class="form-group">
                     <h3>Загрузить клиентов из Excel</h3>
-                    <input type="file" id="clientFile" accept=".xlsx">
+                    <p style="font-size: 12px; color: #999; margin-bottom: 10px;">Файл должен содержать колонки: Имя, Телефон, Email</p>
+                    <input type="file" id="clientFile" accept=".xlsx,.xls">
                     <button class="btn btn-success" onclick="uploadClients()">Загрузить</button>
+                    <div id="uploadError" class="error-message" style="margin-top: 10px;"></div>
                 </div>
             </div>
         </div>
@@ -221,15 +223,19 @@
 
         async function uploadClients() {
             const file = document.getElementById('clientFile').files[0];
+            const errorDiv = document.getElementById('uploadError');
+            errorDiv.textContent = '';
+            
             if (!file) {
-                alert('Выберите файл');
+                errorDiv.textContent = 'Выберите файл';
                 return;
             }
             
+            const password = document.getElementById('adminPassword').value;
             const formData = new FormData();
             formData.append('file', file);
             formData.append('action', 'upload_clients');
-            formData.append('password', document.getElementById('adminPassword').value);
+            formData.append('password', password);
             
             try {
                 const response = await fetch('/admin', {
@@ -241,10 +247,12 @@
                     alert('Клиенты загружены успешно!');
                     document.getElementById('clientFile').value = '';
                 } else {
-                    alert('Ошибка при загрузке файла');
+                    const data = await response.json();
+                    errorDiv.textContent = data.message || 'Ошибка при загрузке файла';
                 }
             } catch (err) {
-                alert('Ошибка подключения');
+                console.error(err);
+                errorDiv.textContent = 'Ошибка подключения: ' + err.message;
             }
         }
     </script>
