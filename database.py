@@ -52,11 +52,24 @@ def init_db():
         CREATE TABLE IF NOT EXISTS comments (
             id INTEGER PRIMARY KEY,
             client_id INTEGER NOT NULL,
+            phone TEXT,
             user_id INTEGER NOT NULL,
             comment TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(client_id) REFERENCES clients(id),
             FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    ''')
+    
+    # Таблица текущего клиента агента
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS current_clients (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER UNIQUE NOT NULL,
+            client_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id),
+            FOREIGN KEY(client_id) REFERENCES clients(id)
         )
     ''')
     
@@ -111,12 +124,33 @@ def get_user(username):
     conn.close()
     return result
 
+def get_user_by_id(user_id):
+    """Получить пользователя по ID"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT id, username, password FROM users WHERE id = ?', (user_id,))
+    result = c.fetchone()
+    conn.close()
+    return result
+
 def add_user(username, password):
     """Добавить нового пользователя"""
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        return False
+
+def update_user_password(user_id, new_password):
+    """Обновить пароль пользователя"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('UPDATE users SET password = ? WHERE id = ?', (new_password, user_id))
         conn.commit()
         conn.close()
         return True
@@ -135,7 +169,7 @@ def get_all_users():
     """Получить всех пользователей"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT id, username, created_at FROM users')
+    c.execute('SELECT id, username, password, created_at FROM users')
     results = c.fetchall()
     conn.close()
     return results
@@ -176,6 +210,19 @@ def get_shift_duration(user_id):
     duration = (datetime.now() - start_time).total_seconds()
     return int(duration)
 
+def get_today_shift(user_id):
+    """Получить смену за сегодня"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        SELECT SUM(CAST((julianday(end_time) - julianday(start_time)) * 86400 AS INTEGER))
+        FROM shifts
+        WHERE user_id = ? AND DATE(start_time) = DATE('now')
+    ''', (user_id,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result[0] else 0
+
 def add_client(name, phone, email):
     """Добавить клиента"""
     conn = sqlite3.connect(DB_PATH)
@@ -186,6 +233,29 @@ def add_client(name, phone, email):
     client_id = c.lastrowid
     conn.close()
     return client_id
+
+def get_current_client(user_id):
+    """Получить текущего клиента агента"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        SELECT c.id, c.name, c.phone, c.email 
+        FROM current_clients cc
+        JOIN clients c ON cc.client_id = c.id
+        WHERE cc.user_id = ?
+    ''', (user_id,))
+    result = c.fetchone()
+    conn.close()
+    return result
+
+def set_current_client(user_id, client_id):
+    """Сохранить текущего клиента агента"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('INSERT OR REPLACE INTO current_clients (user_id, client_id) VALUES (?, ?)', 
+              (user_id, client_id))
+    conn.commit()
+    conn.close()
 
 def get_available_clients():
     """Получить случайного доступного клиента"""
@@ -201,6 +271,15 @@ def get_available_clients():
     if clients:
         return random.choice(clients)
     return None
+
+def get_client_by_id(client_id):
+    """Получить данные клиента по ID"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT id, name, phone, email FROM clients WHERE id = ?', (client_id,))
+    result = c.fetchone()
+    conn.close()
+    return result
 
 def get_working_clients(user_id):
     """Получить клиентов в работе у пользователя"""
@@ -232,8 +311,14 @@ def add_comment(client_id, user_id, comment):
     """Добавить комментарий"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('INSERT INTO comments (client_id, user_id, comment) VALUES (?, ?, ?)', 
-              (client_id, user_id, comment))
+    
+    # Получаем номер телефона клиента для привязки
+    c.execute('SELECT phone FROM clients WHERE id = ?', (client_id,))
+    result = c.fetchone()
+    phone = result[0] if result else ''
+    
+    c.execute('INSERT INTO comments (client_id, phone, user_id, comment) VALUES (?, ?, ?, ?)', 
+              (client_id, phone, user_id, comment))
     conn.commit()
     conn.close()
 
@@ -242,6 +327,15 @@ def get_comments(client_id):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('SELECT user_id, comment, created_at FROM comments WHERE client_id = ? ORDER BY created_at DESC', (client_id,))
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_all_comments_by_phone(phone):
+    """Получить все комментарии по номеру телефона (для истории)"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT user_id, comment, created_at FROM comments WHERE phone = ? ORDER BY created_at DESC', (phone,))
     results = c.fetchall()
     conn.close()
     return results
@@ -263,3 +357,15 @@ def get_username(user_id):
     result = c.fetchone()
     conn.close()
     return result[0] if result else 'Unknown'
+
+def count_user_calls_today(user_id):
+    """Считать количество клиентов прозвонено сегодня"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        SELECT COUNT(*) FROM comments 
+        WHERE user_id = ? AND DATE(created_at) = DATE('now')
+    ''', (user_id,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else 0

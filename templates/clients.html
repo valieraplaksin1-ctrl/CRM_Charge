@@ -26,7 +26,7 @@
             <div id="callingTab" class="tab-content active">
                 <div class="client-card">
                     <div id="clientInfo" class="client-info">
-                        <h2>Нет клиентов</h2>
+                        <h2>Загрузка...</h2>
                     </div>
                     <div id="clientActions" class="client-actions" style="display: none;">
                         <div class="client-details">
@@ -56,9 +56,9 @@
     <script>
         let currentClient = null;
 
-        async function loadNextClient() {
+        async function loadCurrentClient() {
             try {
-                const response = await fetch('/api/clients?action=next');
+                const response = await fetch('/api/clients?action=current');
                 if (response.ok) {
                     currentClient = await response.json();
                     document.getElementById('clientName').textContent = currentClient.name;
@@ -77,11 +77,31 @@
         }
 
         async function skipClient() {
-            loadNextClient();
+            if (!currentClient) return;
+            try {
+                await fetch('/api/clients', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'skip', client_id: currentClient.id})
+                });
+                loadCurrentClient();
+            } catch (err) {
+                console.error(err);
+            }
         }
 
         async function noAnswerClient() {
-            loadNextClient();
+            if (!currentClient) return;
+            try {
+                await fetch('/api/clients', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'skip', client_id: currentClient.id})
+                });
+                loadCurrentClient();
+            } catch (err) {
+                console.error(err);
+            }
         }
 
         document.getElementById('commentForm').addEventListener('submit', async (e) => {
@@ -121,14 +141,14 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({action: 'take', client_id: currentClient.id})
                 });
-                loadNextClient();
+                loadCurrentClient();
             } catch (err) {
                 console.error(err);
             }
         }
 
         function continueSkip() {
-            loadNextClient();
+            loadCurrentClient();
         }
 
         async function loadWorkingClients() {
@@ -162,7 +182,7 @@
             document.getElementById(tab + 'Tab').style.display = 'block';
             event.target.classList.add('active');
             
-            if (tab === 'calling') loadNextClient();
+            if (tab === 'calling') loadCurrentClient();
             else loadWorkingClients();
         }
 
@@ -170,7 +190,7 @@
             window.location.href = `/working-clients?client_id=${clientId}`;
         }
 
-        loadNextClient();
+        loadCurrentClient();
     </script>
 </body>
 </html>

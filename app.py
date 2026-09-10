@@ -4,7 +4,6 @@ from config import BOT_TOKEN, WEB_APP_URL, FLASK_ENV, DEBUG
 from database import *
 import os
 from functools import wraps
-from openpyxl import load_workbook
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'crm_secret_key_2024'
@@ -63,7 +62,7 @@ def admin():
         
         if action == 'get_users':
             users = get_all_users()
-            return jsonify({'users': users})
+            return jsonify({'users': [{'id': u[0], 'username': u[1], 'password': u[2], 'created_at': u[3]} for u in users]})
         
         elif action == 'add_user':
             username = data.get('username')
@@ -72,24 +71,30 @@ def admin():
                 return jsonify({'success': True})
             return jsonify({'success': False, 'message': 'Пользователь уже существует'}), 400
         
+        elif action == 'update_password':
+            user_id = data.get('user_id')
+            new_password = data.get('new_password')
+            if update_user_password(user_id, new_password):
+                return jsonify({'success': True})
+            return jsonify({'success': False}), 400
+        
         elif action == 'delete_user':
             user_id = data.get('user_id')
             delete_user(user_id)
             return jsonify({'success': True})
         
-        elif action == 'upload_clients':
-            # Загрузка клиентов из Excel
-            file = request.files.get('file')
-            if file:
-                try:
-                    wb = load_workbook(file)
-                    ws = wb.active
-                    for row in ws.iter_rows(min_row=2, values_only=True):
-                        if row[0]:  # name
-                            add_client(row[0], row[1], row[2] if len(row) > 2 else '')
-                    return jsonify({'success': True})
-                except:
-                    return jsonify({'success': False, 'message': 'Ошибка при загрузке файла'}), 400
+        elif action == 'get_stats':
+            user_id = data.get('user_id')
+            calls_today = count_user_calls_today(user_id)
+            shift_time = get_today_shift(user_id)
+            return jsonify({'calls': calls_today, 'shift_time': shift_time})
+        
+        elif action == 'get_user_clients':
+            user_id = data.get('user_id')
+            working_clients = get_working_clients(user_id)
+            return jsonify({'clients': [{
+                'id': c[0], 'name': c[1], 'phone': c[2], 'email': c[3]
+            } for c in working_clients]})
         
         return jsonify({'success': False}), 400
     
@@ -137,9 +142,20 @@ def clients_api():
     if request.method == 'GET':
         action = request.args.get('action')
         
-        if action == 'next':
+        if action == 'current':
+            # Получить текущего клиента агента
+            current = get_current_client(user_id)
+            if current:
+                return jsonify({
+                    'id': current[0],
+                    'name': current[1],
+                    'phone': current[2],
+                    'email': current[3]
+                })
+            # Если нет текущего - получить нового
             client = get_available_clients()
             if client:
+                set_current_client(user_id, client[0])
                 return jsonify({
                     'id': client[0],
                     'name': client[1],
@@ -149,10 +165,10 @@ def clients_api():
             return jsonify({'error': 'Нет доступных клиентов'}), 404
         
         elif action == 'working':
-            clients = get_working_clients(user_id)
+            clients_list = get_working_clients(user_id)
             return jsonify({'clients': [
                 {'id': c[0], 'name': c[1], 'phone': c[2], 'email': c[3]} 
-                for c in clients
+                for c in clients_list
             ]})
     
     elif request.method == 'POST':
@@ -161,9 +177,10 @@ def clients_api():
         client_id = data.get('client_id')
         
         if action == 'skip':
-            # Просто получить следующего клиента
+            # Получить следующего клиента (текущий остается available)
             client = get_available_clients()
             if client:
+                set_current_client(user_id, client[0])
                 return jsonify({
                     'id': client[0],
                     'name': client[1],
@@ -179,10 +196,18 @@ def clients_api():
         
         elif action == 'take':
             assign_client(client_id, user_id)
+            # Получить следующего клиента
+            client = get_available_clients()
+            if client:
+                set_current_client(user_id, client[0])
             return jsonify({'success': True})
         
         elif action == 'delete':
             delete_client(client_id)
+            # Получить следующего клиента
+            client = get_available_clients()
+            if client:
+                set_current_client(user_id, client[0])
             return jsonify({'success': True})
     
     return jsonify({'success': False}), 400
@@ -198,11 +223,36 @@ def working_client_api(client_id):
     user_id = session['user_id']
     
     if request.method == 'GET':
-        comments = get_comments(client_id)
-        return jsonify({'comments': [
+        # Получаем данные клиента
+        client = get_client_by_id(client_id)
+        if not client:
+            return jsonify({'error': 'Клиент не найден'}), 404
+        
+        # Получаем комментарии по ID и по номеру телефона
+        comments_by_id = get_comments(client_id)
+        comments_by_phone = get_all_comments_by_phone(client[2])  # client[2] это phone
+        
+        # Объединяем и удаляем дубликаты
+        all_comments = {}
+        for c in comments_by_phone + comments_by_id:
+            key = (c[0], c[1], c[2])  # (user_id, comment, created_at)
+            all_comments[key] = c
+        
+        comments_list = [
             {'user': get_username(c[0]), 'text': c[1], 'date': c[2]}
-            for c in comments
-        ]})
+            for c in all_comments.values()
+        ]
+        
+        # Сортируем по дате (новые первыми)
+        comments_list.sort(key=lambda x: x['date'], reverse=True)
+        
+        return jsonify({
+            'id': client[0],
+            'name': client[1],
+            'phone': client[2],
+            'email': client[3],
+            'comments': comments_list
+        })
     
     elif request.method == 'POST':
         data = request.json
