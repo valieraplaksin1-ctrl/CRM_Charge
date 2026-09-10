@@ -26,7 +26,7 @@
             </div>
 
             <div class="actions-card">
-                <h2>🎯 Действия</h2>
+                <h2>🏢 Действия</h2>
                 <div class="button-group">
                     <button class="btn btn-large" onclick="goToClients()">👥 Работа с клиентами</button>
                 </div>
@@ -37,26 +37,46 @@
     <script>
         let shiftInterval;
         const shiftActive = {{ 'true' if shift_active else 'false' }};
-        let currentDuration = {{ duration }};
+        let shiftStartTime = null;
 
-        function updateDuration() {
-            currentDuration++;
-            const hours = Math.floor(currentDuration / 3600);
-            const minutes = Math.floor((currentDuration % 3600) / 60);
-            const seconds = currentDuration % 60;
+        function initializeTimer() {
+            const storedStartTime = localStorage.getItem('shiftStartTime');
             
-            document.getElementById('duration').textContent = 
-                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        }
-
-        function initShift() {
             if (shiftActive) {
+                if (storedStartTime) {
+                    shiftStartTime = parseInt(storedStartTime);
+                } else {
+                    const duration = {{ duration }};
+                    shiftStartTime = Date.now() - (duration * 1000);
+                    localStorage.setItem('shiftStartTime', shiftStartTime);
+                }
+                
+                startTimerInterval();
                 document.getElementById('shiftBtn').textContent = 'Закончить смену';
                 document.getElementById('shiftBtn').classList.add('btn-danger');
                 document.getElementById('shiftBtn').classList.remove('btn-primary');
-                updateDuration();
-                shiftInterval = setInterval(updateDuration, 1000);
+            } else {
+                localStorage.removeItem('shiftStartTime');
+                document.getElementById('duration').textContent = '00:00:00';
             }
+        }
+
+        function startTimerInterval() {
+            if (shiftInterval) clearInterval(shiftInterval);
+            updateTimer();
+            shiftInterval = setInterval(updateTimer, 1000);
+        }
+
+        function updateTimer() {
+            if (!shiftStartTime) return;
+            
+            const elapsed = Math.floor((Date.now() - shiftStartTime) / 1000);
+            const hours = Math.floor(elapsed / 3600);
+            const minutes = Math.floor((elapsed % 3600) / 60);
+            const seconds = elapsed % 60;
+            
+            document.getElementById('duration').textContent = 
+                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
 
         async function toggleShift() {
@@ -80,7 +100,7 @@
             window.location.href = '/clients';
         }
 
-        initShift();
+        initializeTimer();
     </script>
 </body>
 </html>
