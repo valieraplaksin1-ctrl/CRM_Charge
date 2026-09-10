@@ -60,8 +60,9 @@
     <script>
         let currentClient = null;
         let shiftInterval;
+        let shiftStartTime = null;
 
-        function updateShiftDuration() {
+        function initializeShiftTimer() {
             fetch('/api/shift', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -70,19 +71,28 @@
             .then(r => r.json())
             .then(data => {
                 if (data.active) {
-                    const hours = Math.floor(data.duration / 3600);
-                    const minutes = Math.floor((data.duration % 3600) / 60);
-                    const seconds = data.duration % 60;
+                    shiftStartTime = Date.now() - (data.duration * 1000);
+                    updateShiftDuration();
                     
-                    document.getElementById('shiftDuration').textContent = 
-                        `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    if (shiftInterval) clearInterval(shiftInterval);
+                    shiftInterval = setInterval(updateShiftDuration, 1000);
                 }
             });
         }
 
-        // Обновляем таймер каждую секунду
-        shiftInterval = setInterval(updateShiftDuration, 1000);
-        updateShiftDuration(); // Первый вызов сразу
+        function updateShiftDuration() {
+            if (!shiftStartTime) return;
+            
+            const elapsedSeconds = Math.floor((Date.now() - shiftStartTime) / 1000);
+            const hours = Math.floor(elapsedSeconds / 3600);
+            const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+            const seconds = elapsedSeconds % 60;
+            
+            document.getElementById('shiftDuration').textContent = 
+                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        initializeShiftTimer();
 
         async function loadNextClient() {
             try {
@@ -131,7 +141,6 @@
                     body: JSON.stringify({action: 'add_comment', client_id: currentClient.id, comment})
                 });
                 
-                // Показываем выбор
                 showChoice();
             } catch (err) {
                 alert('Ошибка при сохранении комментария');
@@ -216,7 +225,6 @@
             window.location.href = `/working-clients?client_id=${clientId}`;
         }
 
-        // Загрузить первого клиента при загрузке страницы
         loadNextClient();
     </script>
 </body>
