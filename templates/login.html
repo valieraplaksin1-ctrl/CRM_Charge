@@ -1,34 +1,250 @@
-{% extends "base.html" %}
-
-{% block title %}Вход в CRM{% endblock %}
-
-{% block content %}
-<div class="row justify-content-center" style="margin-top: 100px;">
-    <div class="col-md-6 col-lg-4">
-        <div class="card">
-            <div class="card-header">
-                <h4 class="mb-0">📞 Вход в CRM</h4>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход - CRM</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="dark-theme">
+    <div class="login-container">
+        <div class="login-box">
+            <h1>📞 CRM Для Прозвона</h1>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Имя пользователя:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Пароль:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Войти</button>
+                <div id="error" class="error-message"></div>
+            </form>
+            <div class="admin-link">
+                <a href="#" onclick="showAdminModal()">🔧 Администратор</a>
             </div>
-            <div class="card-body">
-                <p class="text-muted mb-4">Введите ваше имя для начала работы</p>
-                
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="agent_name" class="form-label">Имя агента</label>
-                        <input type="text" class="form-control form-control-lg" id="agent_name" name="agent_name" placeholder="Например: Иван" required autofocus>
-                        <small class="text-muted">Введите ваше имя или прозвище</small>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary btn-lg w-100">Войти</button>
-                </form>
-                
-                <hr>
-                
-                <div class="alert alert-info" role="alert">
-                    <strong>Подсказка:</strong> Это система для управления базой клиентов и прозвона.
+        </div>
+    </div>
+
+    <!-- Админка -->
+    <div id="adminModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeAdminModal()">&times;</span>
+            <h2>Администратор</h2>
+            <div class="admin-tabs">
+                <button class="tab-btn active" onclick="switchAdminTab('login')">Вход</button>
+                <button class="tab-btn" onclick="switchAdminTab('users')">Пользователи</button>
+                <button class="tab-btn" onclick="switchAdminTab('clients')">Загрузить клиентов</button>
+            </div>
+
+            <!-- Вход в админку -->
+            <div id="loginTab" class="tab-content active">
+                <div class="form-group">
+                    <label for="adminPassword">Пароль администратора:</label>
+                    <input type="password" id="adminPassword">
+                </div>
+                <button class="btn btn-primary" onclick="adminLogin()">Войти</button>
+                <div id="adminError" class="error-message"></div>
+            </div>
+
+            <!-- Управление пользователями -->
+            <div id="usersTab" class="tab-content" style="display: none;">
+                <div class="form-group">
+                    <h3>Создать пользователя</h3>
+                    <input type="text" id="newUsername" placeholder="Имя пользователя">
+                    <input type="password" id="newPassword" placeholder="Пароль">
+                    <button class="btn btn-success" onclick="addUser()">Добавить</button>
+                </div>
+                <h3>Существующие пользователи</h3>
+                <div id="usersList"></div>
+            </div>
+
+            <!-- Загрузка клиентов -->
+            <div id="clientsTab" class="tab-content" style="display: none;">
+                <div class="form-group">
+                    <h3>Загрузить клиентов из Excel</h3>
+                    <input type="file" id="clientFile" accept=".xlsx">
+                    <button class="btn btn-success" onclick="uploadClients()">Загрузить</button>
                 </div>
             </div>
         </div>
     </div>
-</div>
-{% endblock %}
+
+    <script>
+        let adminAuthenticated = false;
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password})
+                });
+                
+                if (response.ok) {
+                    window.location.href = '/dashboard';
+                } else {
+                    document.getElementById('error').textContent = 'Неверные учётные данные';
+                }
+            } catch (err) {
+                document.getElementById('error').textContent = 'Ошибка при входе';
+            }
+        });
+
+        function showAdminModal() {
+            document.getElementById('adminModal').style.display = 'block';
+        }
+
+        function closeAdminModal() {
+            document.getElementById('adminModal').style.display = 'none';
+            adminAuthenticated = false;
+        }
+
+        function switchAdminTab(tab) {
+            if (!adminAuthenticated && tab !== 'login') {
+                alert('Сначала введите пароль администратора');
+                return;
+            }
+            
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(tab + 'Tab').style.display = 'block';
+            event.target.classList.add('active');
+            
+            if (tab === 'users') loadUsers();
+        }
+
+        async function adminLogin() {
+            const password = document.getElementById('adminPassword').value;
+            try {
+                const response = await fetch('/admin', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'get_users', password})
+                });
+                
+                if (response.ok) {
+                    adminAuthenticated = true;
+                    document.getElementById('adminError').textContent = '';
+                    switchAdminTab('users');
+                } else {
+                    document.getElementById('adminError').textContent = 'Неверный пароль';
+                }
+            } catch (err) {
+                document.getElementById('adminError').textContent = 'Ошибка подключения';
+            }
+        }
+
+        async function loadUsers() {
+            const password = document.getElementById('adminPassword').value;
+            try {
+                const response = await fetch('/admin', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'get_users', password})
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    let html = '';
+                    data.users.forEach(user => {
+                        html += `
+                            <div class="user-item">
+                                <span>${user[1]}</span>
+                                <button class="btn btn-danger" onclick="deleteUser(${user[0]})">Удалить</button>
+                            </div>
+                        `;
+                    });
+                    document.getElementById('usersList').innerHTML = html;
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function addUser() {
+            const username = document.getElementById('newUsername').value;
+            const password = document.getElementById('newPassword').value;
+            const adminPassword = document.getElementById('adminPassword').value;
+            
+            if (!username || !password) {
+                alert('Заполните все поля');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/admin', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'add_user', username, password, password: adminPassword})
+                });
+                
+                if (response.ok) {
+                    document.getElementById('newUsername').value = '';
+                    document.getElementById('newPassword').value = '';
+                    loadUsers();
+                } else {
+                    alert('Ошибка при создании пользователя');
+                }
+            } catch (err) {
+                alert('Ошибка подключения');
+            }
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm('Удалить пользователя?')) return;
+            
+            const adminPassword = document.getElementById('adminPassword').value;
+            try {
+                const response = await fetch('/admin', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'delete_user', user_id: userId, password: adminPassword})
+                });
+                
+                if (response.ok) {
+                    loadUsers();
+                }
+            } catch (err) {
+                alert('Ошибка при удалении');
+            }
+        }
+
+        async function uploadClients() {
+            const file = document.getElementById('clientFile').files[0];
+            if (!file) {
+                alert('Выберите файл');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('action', 'upload_clients');
+            formData.append('password', document.getElementById('adminPassword').value);
+            
+            try {
+                const response = await fetch('/admin', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    alert('Клиенты загружены успешно!');
+                    document.getElementById('clientFile').value = '';
+                } else {
+                    alert('Ошибка при загрузке файла');
+                }
+            } catch (err) {
+                alert('Ошибка подключения');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Клиенты - CRM</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="dark-theme">
+    <div class="container">
+        <header class="header">
+            <div>
+                <a href="/dashboard" class="btn btn-secondary">← Назад</a>
+                <h1>👥 Работа с клиентами</h1>
+            </div>
+            <a href="/logout" class="btn btn-secondary">Выход</a>
+        </header>
+
+        <div class="clients-container">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('calling')">📞 Начать прозвон</button>
+                <button class="tab-btn" onclick="switchTab('working')">📋 Клиенты в работе</button>
+            </div>
+
+            <!-- Прозвон клиентов -->
+            <div id="callingTab" class="tab-content active">
+                <div class="client-card">
+                    <div id="clientInfo" class="client-info">
+                        <h2>Нет клиентов</h2>
+                    </div>
+                    <div id="clientActions" class="client-actions" style="display: none;">
+                        <div class="client-details">
+                            <p><strong>Имя:</strong> <span id="clientName"></span></p>
+                            <p><strong>Телефон:</strong> <span id="clientPhone"></span></p>
+                            <p><strong>Email:</strong> <span id="clientEmail"></span></p>
+                        </div>
+                        <div class="quick-actions">
+                            <button class="btn btn-secondary" onclick="skipClient()">👎 Не интересно</button>
+                        </div>
+                        <form id="commentForm" style="margin-top: 20px;">
+                            <textarea id="commentText" placeholder="Оставьте комментарий..." required></textarea>
+                            <button type="submit" class="btn btn-primary">💬 Сохранить комментарий</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Клиенты в работе -->
+            <div id="workingTab" class="tab-content" style="display: none;">
+                <div id="workingClientsList" class="clients-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentClient = null;
+
+        async function loadNextClient() {
+            try {
+                const response = await fetch('/api/clients?action=next');
+                if (response.ok) {
+                    currentClient = await response.json();
+                    document.getElementById('clientName').textContent = currentClient.name;
+                    document.getElementById('clientPhone').textContent = currentClient.phone;
+                    document.getElementById('clientEmail').textContent = currentClient.email;
+                    document.getElementById('clientInfo').style.display = 'none';
+                    document.getElementById('clientActions').style.display = 'block';
+                    document.getElementById('commentForm').reset();
+                } else {
+                    document.getElementById('clientInfo').innerHTML = '<h2>❌ Нет доступных клиентов</h2>';
+                    document.getElementById('clientActions').style.display = 'none';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function skipClient() {
+            if (!currentClient) return;
+            
+            try {
+                await fetch('/api/clients', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'skip', client_id: currentClient.id})
+                });
+                loadNextClient();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        document.getElementById('commentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentClient) return;
+            
+            const comment = document.getElementById('commentText').value;
+            try {
+                await fetch('/api/clients', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'add_comment', client_id: currentClient.id, comment})
+                });
+                
+                // Показываем выбор
+                showChoice();
+            } catch (err) {
+                alert('Ошибка при сохранении комментария');
+            }
+        });
+
+        function showChoice() {
+            const html = `
+                <div class="choice-modal">
+                    <h3>Что дальше?</h3>
+                    <button class="btn btn-danger" onclick="deleteClient()">🗑️ Удалить клиента</button>
+                    <button class="btn btn-success" onclick="takeClient()">✅ Взять в работу</button>
+                </div>
+            `;
+            document.getElementById('clientActions').innerHTML += html;
+        }
+
+        async function deleteClient() {
+            if (!currentClient) return;
+            try {
+                await fetch('/api/clients', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'delete', client_id: currentClient.id})
+                });
+                loadNextClient();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function takeClient() {
+            if (!currentClient) return;
+            try {
+                await fetch('/api/clients', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'take', client_id: currentClient.id})
+                });
+                loadNextClient();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function loadWorkingClients() {
+            try {
+                const response = await fetch('/api/clients?action=working');
+                if (response.ok) {
+                    const data = await response.json();
+                    let html = '';
+                    data.clients.forEach(client => {
+                        html += `
+                            <div class="working-client-item">
+                                <div class="client-header">
+                                    <h3>${client.name}</h3>
+                                    <p>📞 ${client.phone}</p>
+                                </div>
+                                <button class="btn btn-primary" onclick="openClient(${client.id})">📝 Просмотр и комментарии</button>
+                            </div>
+                        `;
+                    });
+                    document.getElementById('workingClientsList').innerHTML = html || '<p>Нет клиентов в работе</p>';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(tab + 'Tab').style.display = 'block';
+            event.target.classList.add('active');
+            
+            if (tab === 'calling') loadNextClient();
+            else loadWorkingClients();
+        }
+
+        function openClient(clientId) {
+            window.location.href = `/working-clients?client_id=${clientId}`;
+        }
+
+        // Загрузить первого клиента при загрузке страницы
+        loadNextClient();
+    </script>
+</body>
+</html>

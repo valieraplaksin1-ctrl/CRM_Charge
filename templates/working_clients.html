@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Клиент в работе - CRM</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="dark-theme">
+    <div class="container">
+        <header class="header">
+            <a href="/clients" class="btn btn-secondary">← Назад</a>
+            <a href="/logout" class="btn btn-secondary">Выход</a>
+        </header>
+
+        <div class="working-client-container">
+            <div class="client-header-card">
+                <h2 id="clientName"></h2>
+                <p>📞 <span id="clientPhone"></span></p>
+                <p>📧 <span id="clientEmail"></span></p>
+            </div>
+
+            <div class="comments-card">
+                <h3>💬 Комментарии</h3>
+                <div id="commentsList" class="comments-list"></div>
+                
+                <form id="newCommentForm" style="margin-top: 20px;">
+                    <textarea id="newCommentText" placeholder="Добавить новый комментарий..." required></textarea>
+                    <button type="submit" class="btn btn-primary">📝 Добавить комментарий</button>
+                </form>
+
+                <button class="btn btn-danger" onclick="deleteWorkingClient()" style="margin-top: 20px; width: 100%;">🗑️ Удалить клиента</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const clientId = new URLSearchParams(window.location.search).get('client_id');
+        let clientData = {};
+
+        async function loadClientData() {
+            try {
+                const response = await fetch(`/api/working-clients/${clientId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    // Здесь загружаем комментарии
+                    loadComments(data.comments || []);
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function loadComments(comments) {
+            let html = '';
+            comments.forEach(comment => {
+                html += `
+                    <div class="comment-item">
+                        <strong>${comment.user}</strong> (${comment.date})
+                        <p>${comment.text}</p>
+                    </div>
+                `;
+            });
+            document.getElementById('commentsList').innerHTML = html || '<p>Нет комментариев</p>';
+        }
+
+        document.getElementById('newCommentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const comment = document.getElementById('newCommentText').value;
+            
+            try {
+                const response = await fetch(`/api/working-clients/${clientId}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'add_comment', comment})
+                });
+                
+                if (response.ok) {
+                    document.getElementById('newCommentText').value = '';
+                    loadClientData();
+                }
+            } catch (err) {
+                alert('Ошибка при добавлении комментария');
+            }
+        });
+
+        async function deleteWorkingClient() {
+            if (!confirm('Вы уверены? Клиент будет удалён.')) return;
+            
+            try {
+                await fetch(`/api/working-clients/${clientId}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'delete'})
+                });
+                window.location.href = '/clients';
+            } catch (err) {
+                alert('Ошибка при удалении клиента');
+            }
+        }
+
+        loadClientData();
+    </script>
+</body>
+</html>
