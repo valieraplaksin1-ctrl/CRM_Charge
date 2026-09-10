@@ -171,10 +171,10 @@
 
         async function addUser() {
             const username = document.getElementById('newUsername').value;
-            const password = document.getElementById('newPassword').value;
-            const adminPassword = document.getElementById('adminPassword').value;
+            const user_password = document.getElementById('newPassword').value;
+            const password = document.getElementById('adminPassword').value;
             
-            if (!username || !password) {
+            if (!username || !user_password) {
                 alert('Заполните все поля');
                 return;
             }
@@ -183,15 +183,17 @@
                 const response = await fetch('/admin', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: 'add_user', username, password, password: adminPassword})
+                    body: JSON.stringify({action: 'add_user', username, user_password, password})
                 });
                 
                 if (response.ok) {
+                    alert('Пользователь создан!');
                     document.getElementById('newUsername').value = '';
                     document.getElementById('newPassword').value = '';
                     loadUsers();
                 } else {
-                    alert('Ошибка при создании пользователя');
+                    const data = await response.json();
+                    alert(data.message || 'Ошибка при создании пользователя');
                 }
             } catch (err) {
                 alert('Ошибка подключения');
@@ -201,12 +203,12 @@
         async function deleteUser(userId) {
             if (!confirm('Удалить пользователя?')) return;
             
-            const adminPassword = document.getElementById('adminPassword').value;
+            const password = document.getElementById('adminPassword').value;
             try {
                 const response = await fetch('/admin', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: 'delete_user', user_id: userId, password: adminPassword})
+                    body: JSON.stringify({action: 'delete_user', user_id: userId, password})
                 });
                 
                 if (response.ok) {
