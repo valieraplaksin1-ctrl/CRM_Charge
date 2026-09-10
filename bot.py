@@ -1,6 +1,7 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes
+from config import BOT_TOKEN, WEB_APP_URL
 import os
 
 # Настройка логирования
@@ -9,12 +10,6 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-# Ваш API ключ
-BOT_TOKEN = '8990165115:AAF5pSg9jXtu8XqpyGSWDW6GvoiMtqipPsE'
-
-# URL вашего приложения (замените на реальный URL)
-WEB_APP_URL = 'https://your-app-url.com'  # Будет обновлено после развёртывания
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /start"""
@@ -61,7 +56,7 @@ def main() -> None:
     application.add_handler(CommandHandler("help", help_command))
 
     # Запускаем бота
-    logger.info("🤖 Бот запущен!")
+    logger.info(f"🤖 Бот запущен! Приложение доступно по адресу: {WEB_APP_URL}")
     application.run_polling()
 
 if __name__ == '__main__':
