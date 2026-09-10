@@ -13,7 +13,12 @@
                 <a href="/dashboard" class="btn btn-secondary">← Назад</a>
                 <h1>👥 Работа с клиентами</h1>
             </div>
-            <a href="/logout" class="btn btn-secondary">Выход</a>
+            <div class="header-right">
+                <div id="shiftInfo" style="display: flex; gap: 15px; align-items: center;">
+                    <span id="shiftDuration" style="font-size: 18px; color: #999; font-family: 'Courier New', monospace;">00:00:00</span>
+                </div>
+                <a href="/logout" class="btn btn-secondary">Выход</a>
+            </div>
         </header>
 
         <div class="clients-container">
@@ -54,6 +59,30 @@
 
     <script>
         let currentClient = null;
+        let shiftInterval;
+
+        function updateShiftDuration() {
+            fetch('/api/shift', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'status'})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.active) {
+                    const hours = Math.floor(data.duration / 3600);
+                    const minutes = Math.floor((data.duration % 3600) / 60);
+                    const seconds = data.duration % 60;
+                    
+                    document.getElementById('shiftDuration').textContent = 
+                        `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                }
+            });
+        }
+
+        // Обновляем таймер каждую секунду
+        shiftInterval = setInterval(updateShiftDuration, 1000);
+        updateShiftDuration(); // Первый вызов сразу
 
         async function loadNextClient() {
             try {
