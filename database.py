@@ -1,8 +1,11 @@
 import sqlite3
 from datetime import datetime
 import os
+import random
+from openpyxl import load_workbook
 
 DB_PATH = 'crm.db'
+CLIENTS_FILE = 'data/clients.xlsx'
 
 def init_db():
     """Инициализация базы данных"""
@@ -59,6 +62,45 @@ def init_db():
     
     conn.commit()
     conn.close()
+    
+    # Загружаем клиентов из файла если его нет в БД
+    load_clients_from_file()
+
+def load_clients_from_file():
+    """Загружает клиентов из Excel файла в папке data/"""
+    if not os.path.exists(CLIENTS_FILE):
+        return
+    
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    # Проверяем есть ли уже клиенты
+    c.execute('SELECT COUNT(*) FROM clients')
+    if c.fetchone()[0] > 0:
+        conn.close()
+        return
+    
+    try:
+        wb = load_workbook(CLIENTS_FILE)
+        ws = wb.active
+        
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[0]:  # Если есть имя
+                name = str(row[0]).strip()
+                phone = str(row[1]).strip() if row[1] else ''
+                email = str(row[2]).strip() if row[2] else ''
+                
+                c.execute(
+                    'INSERT INTO clients (name, phone, email, status) VALUES (?, ?, ?, ?)',
+                    (name, phone, email, 'available')
+                )
+        
+        conn.commit()
+        print(f"✅ Загружено клиентов из {CLIENTS_FILE}")
+    except Exception as e:
+        print(f"❌ Ошибка при загрузке клиентов: {e}")
+    finally:
+        conn.close()
 
 def get_user(username):
     """Получить пользователя по имени"""
@@ -126,12 +168,12 @@ def get_current_shift(user_id):
     return result
 
 def get_shift_duration(user_id):
-    """Получить длительность текущей смены в минутах"""
+    """Получить длительность текущей смены в секундах"""
     shift = get_current_shift(user_id)
     if not shift:
         return 0
     start_time = datetime.fromisoformat(shift[1])
-    duration = (datetime.now() - start_time).total_seconds() / 60
+    duration = (datetime.now() - start_time).total_seconds()
     return int(duration)
 
 def add_client(name, phone, email):
@@ -146,13 +188,19 @@ def add_client(name, phone, email):
     return client_id
 
 def get_available_clients():
-    """Получить доступных клиентов (не в работе)"""
+    """Получить случайного доступного клиента"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT id, name, phone, email FROM clients WHERE status = "available" LIMIT 1')
-    result = c.fetchone()
+    
+    # Получаем всех доступных клиентов
+    c.execute('SELECT id, name, phone, email FROM clients WHERE status = "available"')
+    clients = c.fetchall()
     conn.close()
-    return result
+    
+    # Возвращаем случайного клиента
+    if clients:
+        return random.choice(clients)
+    return None
 
 def get_working_clients(user_id):
     """Получить клиентов в работе у пользователя"""
@@ -197,6 +245,15 @@ def get_comments(client_id):
     results = c.fetchall()
     conn.close()
     return results
+
+def get_last_comment(client_id):
+    """Получить последний комментарий к клиенту с датой"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT user_id, comment, created_at FROM comments WHERE client_id = ? ORDER BY created_at DESC LIMIT 1', (client_id,))
+    result = c.fetchone()
+    conn.close()
+    return result
 
 def get_username(user_id):
     """Получить имя пользователя по ID"""
