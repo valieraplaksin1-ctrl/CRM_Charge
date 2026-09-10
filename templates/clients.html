@@ -13,12 +13,7 @@
                 <a href="/dashboard" class="btn btn-secondary">← Назад</a>
                 <h1>👥 Работа с клиентами</h1>
             </div>
-            <div class="header-right">
-                <div id="shiftInfo" style="display: flex; gap: 15px; align-items: center;">
-                    <span id="shiftDuration" style="font-size: 18px; color: #999; font-family: 'Courier New', monospace;">00:00:00</span>
-                </div>
-                <a href="/logout" class="btn btn-secondary">Выход</a>
-            </div>
+            <a href="/logout" class="btn btn-secondary">Выход</a>
         </header>
 
         <div class="clients-container">
@@ -59,40 +54,6 @@
 
     <script>
         let currentClient = null;
-        let shiftInterval;
-        let shiftStartTime = null;
-
-        function initializeShiftTimer() {
-            fetch('/api/shift', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: 'status'})
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.active) {
-                    shiftStartTime = Date.now() - (data.duration * 1000);
-                    updateShiftDuration();
-                    
-                    if (shiftInterval) clearInterval(shiftInterval);
-                    shiftInterval = setInterval(updateShiftDuration, 1000);
-                }
-            });
-        }
-
-        function updateShiftDuration() {
-            if (!shiftStartTime) return;
-            
-            const elapsedSeconds = Math.floor((Date.now() - shiftStartTime) / 1000);
-            const hours = Math.floor(elapsedSeconds / 3600);
-            const minutes = Math.floor((elapsedSeconds % 3600) / 60);
-            const seconds = elapsedSeconds % 60;
-            
-            document.getElementById('shiftDuration').textContent = 
-                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        }
-
-        initializeShiftTimer();
 
         async function loadNextClient() {
             try {
