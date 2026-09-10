@@ -36,6 +36,7 @@
                         </div>
                         <div class="quick-actions">
                             <button class="btn btn-secondary" onclick="skipClient()">👎 Не интересно</button>
+                            <button class="btn btn-secondary" onclick="noAnswerClient()">📵 No Answer</button>
                         </div>
                         <form id="commentForm" style="margin-top: 20px;">
                             <textarea id="commentText" placeholder="Оставьте комментарий..." required></textarea>
@@ -76,18 +77,11 @@
         }
 
         async function skipClient() {
-            if (!currentClient) return;
-            
-            try {
-                await fetch('/api/clients', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: 'skip', client_id: currentClient.id})
-                });
-                loadNextClient();
-            } catch (err) {
-                console.error(err);
-            }
+            loadNextClient();
+        }
+
+        async function noAnswerClient() {
+            loadNextClient();
         }
 
         document.getElementById('commentForm').addEventListener('submit', async (e) => {
@@ -112,25 +106,11 @@
             const html = `
                 <div class="choice-modal">
                     <h3>Что дальше?</h3>
-                    <button class="btn btn-danger" onclick="deleteClient()">🗑️ Удалить клиента</button>
                     <button class="btn btn-success" onclick="takeClient()">✅ Взять в работу</button>
+                    <button class="btn btn-secondary" onclick="continueSkip()">➡️ Далее</button>
                 </div>
             `;
             document.getElementById('clientActions').innerHTML += html;
-        }
-
-        async function deleteClient() {
-            if (!currentClient) return;
-            try {
-                await fetch('/api/clients', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: 'delete', client_id: currentClient.id})
-                });
-                loadNextClient();
-            } catch (err) {
-                console.error(err);
-            }
         }
 
         async function takeClient() {
@@ -145,6 +125,10 @@
             } catch (err) {
                 console.error(err);
             }
+        }
+
+        function continueSkip() {
+            loadNextClient();
         }
 
         async function loadWorkingClients() {
