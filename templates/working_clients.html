@@ -15,7 +15,7 @@
 
         <div class="working-client-container">
             <div class="client-header-card">
-                <h2 id="clientName"></h2>
+                <h2 id="clientName">Загрузка...</h2>
                 <p>📞 <span id="clientPhone"></span></p>
                 <p>📧 <span id="clientEmail"></span></p>
             </div>
@@ -43,7 +43,11 @@
                 const response = await fetch(`/api/working-clients/${clientId}`);
                 if (response.ok) {
                     const data = await response.json();
-                    // Здесь загружаем комментарии
+                    // Загружаем данные клиента
+                    document.getElementById('clientName').textContent = data.name;
+                    document.getElementById('clientPhone').textContent = data.phone;
+                    document.getElementById('clientEmail').textContent = data.email;
+                    // Загружаем комментарии
                     loadComments(data.comments || []);
                 }
             } catch (err) {
