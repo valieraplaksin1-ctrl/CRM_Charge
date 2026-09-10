@@ -55,6 +55,7 @@
 
     <script>
         let currentClient = null;
+        let commentSaved = false;
 
         async function loadCurrentClient() {
             try {
@@ -67,6 +68,7 @@
                     document.getElementById('clientInfo').style.display = 'none';
                     document.getElementById('clientActions').style.display = 'block';
                     document.getElementById('commentForm').reset();
+                    commentSaved = false;
                 } else {
                     document.getElementById('clientInfo').innerHTML = '<h2>❌ Нет доступных клиентов</h2>';
                     document.getElementById('clientActions').style.display = 'none';
@@ -116,6 +118,7 @@
                     body: JSON.stringify({action: 'add_comment', client_id: currentClient.id, comment})
                 });
                 
+                commentSaved = true;
                 showChoice();
             } catch (err) {
                 alert('Ошибка при сохранении комментария');
@@ -127,7 +130,7 @@
                 <div class="choice-modal">
                     <h3>Что дальше?</h3>
                     <button class="btn btn-success" onclick="takeClient()">✅ Взять в работу</button>
-                    <button class="btn btn-secondary" onclick="continueSkip()">➡️ Далее</button>
+                    <button class="btn btn-primary" onclick="continueSkip()">➡️ Далее</button>
                 </div>
             `;
             document.getElementById('clientActions').innerHTML += html;

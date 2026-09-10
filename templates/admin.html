@@ -12,6 +12,7 @@
             margin-bottom: 20px;
             border-bottom: 2px solid #444;
             padding-bottom: 10px;
+            flex-wrap: wrap;
         }
         .admin-tab-btn {
             padding: 10px 20px;
@@ -39,6 +40,7 @@
         }
         .user-card h3 {
             margin: 0 0 10px 0;
+            color: #4CAF50;
         }
         .user-card p {
             margin: 5px 0;
@@ -48,6 +50,7 @@
             display: flex;
             gap: 10px;
             margin-top: 10px;
+            flex-wrap: wrap;
         }
         .user-actions button {
             padding: 8px 15px;
@@ -58,6 +61,7 @@
             gap: 10px;
             margin-top: 10px;
             align-items: center;
+            flex-wrap: wrap;
         }
         .password-input input {
             flex: 1;
@@ -66,18 +70,61 @@
             border: 1px solid #555;
             color: #fff;
             border-radius: 3px;
+            min-width: 150px;
         }
         .stats {
             background: #333;
             padding: 20px;
             border-radius: 5px;
             margin: 10px 0;
+            border-left: 4px solid #2196F3;
         }
         .stats-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
             margin-bottom: 20px;
+        }
+        .client-item {
+            background: #444;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+            border-left: 3px solid #2196F3;
+        }
+        .client-item p {
+            margin: 3px 0;
+            color: #bbb;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+        }
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: #222;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid #4CAF50;
+        }
+        .modal-close {
+            float: right;
+            font-size: 28px;
+            cursor: pointer;
+            color: #fff;
         }
     </style>
 </head>
@@ -88,7 +135,7 @@
             <a href="/logout" class="btn btn-secondary">Выход</a>
         </header>
 
-        <div class="login-card" style="max-width: 100%;">
+        <div class="login-card" id="loginForm" style="max-width: 100%;">
             <form id="adminLoginForm">
                 <label>Пароль администратора:</label>
                 <input type="password" id="adminPassword" required>
@@ -127,6 +174,15 @@
         </div>
     </div>
 
+    <!-- Модальное окно для клиентов -->
+    <div id="clientsModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeClientsModal()">&times;</span>
+            <h2 id="modalUserName"></h2>
+            <div id="modalClientsList"></div>
+        </div>
+    </div>
+
     <script>
         let adminPassword = '';
         let users = [];
@@ -145,7 +201,7 @@
                 if (response.ok) {
                     const data = await response.json();
                     users = data.users;
-                    document.getElementById('adminLoginForm').parentElement.style.display = 'none';
+                    document.getElementById('loginForm').style.display = 'none';
                     document.getElementById('adminPanel').style.display = 'block';
                     loadUsers();
                     loadStats();
@@ -154,6 +210,7 @@
                 }
             } catch (err) {
                 console.error(err);
+                alert('Ошибка при входе');
             }
         });
 
@@ -164,21 +221,27 @@
                     <div class="user-card">
                         <h3>${user.username}</h3>
                         <p>ID: ${user.id}</p>
-                        <p>Пароль: <strong>${user.password}</strong></p>
-                        <p>Создан: ${user.created_at}</p>
+                        <p>🔐 Пароль: <strong>${user.password}</strong> <button class="btn btn-secondary" style="padding: 3px 10px; font-size: 11px;" onclick="copyToClipboard('${user.password}')">📋 Копировать</button></p>
+                        <p>📅 Создан: ${new Date(user.created_at).toLocaleString()}</p>
                         <div class="user-actions">
                             <button class="btn btn-secondary" onclick="showPasswordForm(${user.id})">🔑 Сменить пароль</button>
+                            <button class="btn btn-primary" onclick="viewUserClients(${user.id}, '${user.username}')">📋 Клиенты</button>
                             <button class="btn btn-danger" onclick="deleteUser(${user.id})">🗑️ Удалить</button>
-                            <button class="btn btn-primary" onclick="viewUserClients(${user.id})">📋 Клиенты</button>
                         </div>
                         <div id="passForm${user.id}" class="password-input" style="display: none;">
                             <input type="text" id="newPass${user.id}" placeholder="Новый пароль">
                             <button class="btn btn-success" onclick="updatePassword(${user.id})">✅ Сохранить</button>
+                            <button class="btn btn-secondary" onclick="showPasswordForm(${user.id})">❌ Отмена</button>
                         </div>
                     </div>
                 `;
             }
-            document.getElementById('usersList').innerHTML = html;
+            document.getElementById('usersList').innerHTML = html || '<p>Нет пользователей</p>';
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text);
+            alert('Скопировано!');
         }
 
         function showPasswordForm(userId) {
@@ -202,7 +265,6 @@
                 
                 if (response.ok) {
                     alert('Пароль обновлен');
-                    // Обновляем локальный список
                     users.find(u => u.id === userId).password = newPassword;
                     loadUsers();
                 } else {
@@ -224,12 +286,13 @@
                 });
                 users = users.filter(u => u.id !== userId);
                 loadUsers();
+                alert('Пользователь удален');
             } catch (err) {
                 console.error(err);
             }
         }
 
-        async function viewUserClients(userId) {
+        async function viewUserClients(userId, userName) {
             try {
                 const response = await fetch('/admin', {
                     method: 'POST',
@@ -239,14 +302,15 @@
                 
                 if (response.ok) {
                     const data = await response.json();
-                    let clientsHtml = '<h3>Клиенты в работе:</h3>';
+                    document.getElementById('modalUserName').textContent = `Клиенты ${userName} в работе`;
                     
+                    let clientsHtml = '';
                     if (data.clients.length === 0) {
-                        clientsHtml += '<p>Нет клиентов в работе</p>';
+                        clientsHtml = '<p>Нет клиентов в работе</p>';
                     } else {
                         data.clients.forEach(client => {
                             clientsHtml += `
-                                <div class="user-card">
+                                <div class="client-item">
                                     <p><strong>${client.name}</strong></p>
                                     <p>📞 ${client.phone}</p>
                                     <p>📧 ${client.email}</p>
@@ -255,11 +319,16 @@
                         });
                     }
                     
-                    alert(clientsHtml);
+                    document.getElementById('modalClientsList').innerHTML = clientsHtml;
+                    document.getElementById('clientsModal').classList.add('active');
                 }
             } catch (err) {
                 console.error(err);
             }
+        }
+
+        function closeClientsModal() {
+            document.getElementById('clientsModal').classList.remove('active');
         }
 
         async function loadStats() {
@@ -283,11 +352,11 @@
                                 <div class="stats-row">
                                     <div class="stats">
                                         <p>📞 Прозвонено сегодня:</p>
-                                        <h2 style="color: #4CAF50;">${stats.calls}</h2>
+                                        <h2 style="color: #4CAF50; margin: 10px 0;">${stats.calls}</h2>
                                     </div>
                                     <div class="stats">
                                         <p>⏱️ Время смены:</p>
-                                        <h2 style="color: #4CAF50;">${shiftHours}ч ${shiftMinutes}м</h2>
+                                        <h2 style="color: #2196F3; margin: 10px 0;">${shiftHours}ч ${shiftMinutes}м</h2>
                                     </div>
                                 </div>
                             </div>
@@ -297,7 +366,7 @@
                     console.error(err);
                 }
             }
-            document.getElementById('statsList').innerHTML = html;
+            document.getElementById('statsList').innerHTML = html || '<p>Нет данных</p>';
         }
 
         document.getElementById('addUserForm').addEventListener('submit', async (e) => {
@@ -338,6 +407,18 @@
             
             document.getElementById(tab + 'Tab').classList.add('active');
             event.target.classList.add('active');
+            
+            if (tab === 'stats') {
+                loadStats();
+            }
+        }
+
+        // Закрываем модальное окно при клике вне его
+        window.onclick = function(event) {
+            const modal = document.getElementById('clientsModal');
+            if (event.target === modal) {
+                modal.classList.remove('active');
+            }
         }
     </script>
 </body>
