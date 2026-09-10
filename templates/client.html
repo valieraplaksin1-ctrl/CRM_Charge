@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}{{ client.name }} - CRM{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary mb-3">← Назад к списку</a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">👤 Информация о клиенте</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Имя:</label>
+                    <p class="form-control-plaintext fs-5">{{ client.name }}</p>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Телефон:</label>
+                    <p class="form-control-plaintext">
+                        <a href="tel:{{ client.phone }}" style="text-decoration: none; color: #667eea; font-size: 1.1rem;">📞 {{ client.phone }}</a>
+                    </p>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Email:</label>
+                    <p class="form-control-plaintext">
+                        <a href="mailto:{{ client.email }}" style="text-decoration: none; color: #667eea;">✉️ {{ client.email }}</a>
+                    </p>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Добавлен:</label>
+                    <p class="form-control-plaintext text-muted">📅 {{ client.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                </div>
+                
+                <hr>
+                
+                {% if client.agent %}
+                <div class="alert alert-info">
+                    <strong>Последний агент:</strong> {{ client.agent }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <form method="POST" class="mb-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">🏷️ Изменить статус</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Текущий статус:</label>
+                        <select name="status" id="status" class="form-select form-select-lg" required>
+                            <option value="Новый" {% if client.status == 'Новый' %}selected{% endif %}>🔴 Новый</option>
+                            <option value="В работе" {% if client.status == 'В работе' %}selected{% endif %}>🟠 В работе</option>
+                            <option value="Обработан" {% if client.status == 'Обработан' %}selected{% endif %}>🟢 Обработан</option>
+                            <option value="Не интересует" {% if client.status == 'Не интересует' %}selected{% endif %}>⚫ Не интересует</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">💬 Добавить комментарий</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="comment" class="form-label">Ваш комментарий:</label>
+                        <textarea name="comment" id="comment" class="form-control" rows="4" placeholder="Введите ваше замечание о клиенте..."></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-lg w-100">💾 Сохранить изменения</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">📝 История комментариев</h5>
+            </div>
+            <div class="card-body">
+                {% if client.comments %}
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; max-height: 300px; overflow-y: auto;">
+                        {% for comment in client.comments.split('\n') %}
+                            {% if comment.strip() %}
+                                <div class="mb-3 pb-3" style="border-bottom: 1px solid #e9ecef;">
+                                    <p class="mb-0" style="white-space: pre-wrap; word-wrap: break-word;">{{ comment }}</p>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info mb-0" role="alert">
+                        <strong>Нет комментариев.</strong> Будьте первым, кто добавит комментарий!
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12 text-center">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-lg">← Вернуться к списку</a>
+    </div>
+</div>
+{% endblock %}
