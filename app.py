@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, make_response
 from flask_session import Session
 from config import BOT_TOKEN, WEB_APP_URL, FLASK_ENV, DEBUG
 from database import *
@@ -107,7 +107,9 @@ def admin():
         
         return jsonify({'success': False}), 400
     
-    return render_template('admin.html', v=int(time.time()))
+    response = make_response(render_template('admin.html', v=int(time.time())))
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return response
 
 @app.route('/dashboard')
 @login_required
