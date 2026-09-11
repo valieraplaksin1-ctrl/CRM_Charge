@@ -5,6 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Клиенты - CRM</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .cooldown-timer {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 2000;
+            border: 2px solid #ff6b6b;
+        }
+        .cooldown-timer h3 {
+            color: #ff6b6b;
+            margin-bottom: 20px;
+        }
+        .timer-number {
+            font-size: 48px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin: 20px 0;
+        }
+        .quick-actions button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
 </head>
 <body class="dark-theme">
     <div class="container">
@@ -35,8 +64,8 @@
                             <p><strong>Email:</strong> <span id="clientEmail"></span></p>
                         </div>
                         <div class="quick-actions">
-                            <button class="btn btn-secondary" onclick="skipClient()">👎 Не интересно</button>
-                            <button class="btn btn-secondary" onclick="noAnswerClient()">📵 No Answer</button>
+                            <button class="btn btn-secondary" id="skipBtn" onclick="skipClient()">👎 Не интересно</button>
+                            <button class="btn btn-secondary" id="noAnswerBtn" onclick="noAnswerClient()">📵 No Answer</button>
                         </div>
                         <form id="commentForm" style="margin-top: 20px;">
                             <textarea id="commentText" placeholder="Оставьте комментарий..." required></textarea>
@@ -60,9 +89,17 @@
         </div>
     </div>
 
+    <!-- Таймер ожидания 15 секунд -->
+    <div id="cooldownTimer" class="cooldown-timer">
+        <h3>⏱️ Подождите перед следующим действием</h3>
+        <div class="timer-number" id="timerDisplay">15</div>
+        <p>Повторное действие через:</p>
+    </div>
+
     <script>
         let currentClient = null;
         let commentSaved = false;
+        let cooldownActive = false;
 
         async function loadCurrentClient() {
             try {
@@ -86,7 +123,56 @@
             }
         }
 
+        async function checkCooldown() {
+            try {
+                const response = await fetch('/api/clients', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'check_cooldown'})
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.allowed;
+                }
+            } catch (err) {
+                console.error(err);
+            }
+            return true;
+        }
+
+        function showCooldownTimer(seconds) {
+            cooldownActive = true;
+            document.getElementById('skipBtn').disabled = true;
+            document.getElementById('noAnswerBtn').disabled = true;
+            document.getElementById('cooldownTimer').style.display = 'block';
+            
+            let remaining = seconds;
+            document.getElementById('timerDisplay').textContent = remaining;
+            
+            const interval = setInterval(() => {
+                remaining--;
+                document.getElementById('timerDisplay').textContent = remaining;
+                
+                if (remaining <= 0) {
+                    clearInterval(interval);
+                    document.getElementById('cooldownTimer').style.display = 'none';
+                    document.getElementById('skipBtn').disabled = false;
+                    document.getElementById('noAnswerBtn').disabled = false;
+                    cooldownActive = false;
+                }
+            }, 1000);
+        }
+
         async function skipClient() {
+            if (cooldownActive) return;
+            
+            const allowed = await checkCooldown();
+            if (!allowed) {
+                showCooldownTimer(15);
+                return;
+            }
+            
             if (!currentClient) return;
             try {
                 await fetch('/api/clients', {
@@ -94,13 +180,22 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({action: 'skip', client_id: currentClient.id})
                 });
-                loadCurrentClient();
+                showCooldownTimer(15);
+                setTimeout(() => loadCurrentClient(), 15000);
             } catch (err) {
                 console.error(err);
             }
         }
 
         async function noAnswerClient() {
+            if (cooldownActive) return;
+            
+            const allowed = await checkCooldown();
+            if (!allowed) {
+                showCooldownTimer(15);
+                return;
+            }
+            
             if (!currentClient) return;
             try {
                 await fetch('/api/clients', {
@@ -108,7 +203,8 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({action: 'skip', client_id: currentClient.id})
                 });
-                loadCurrentClient();
+                showCooldownTimer(15);
+                setTimeout(() => loadCurrentClient(), 15000);
             } catch (err) {
                 console.error(err);
             }
