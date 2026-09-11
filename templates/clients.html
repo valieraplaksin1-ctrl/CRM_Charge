@@ -42,6 +42,13 @@
                             <textarea id="commentText" placeholder="Оставьте комментарий..." required></textarea>
                             <button type="submit" class="btn btn-primary">💬 Сохранить комментарий</button>
                         </form>
+                        <div id="choiceModal" style="display: none; margin-top: 20px; padding: 20px; background: #333; border-radius: 5px;">
+                            <h3>Что дальше?</h3>
+                            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                                <button class="btn btn-success" onclick="takeClient()">✅ Взять в работу</button>
+                                <button class="btn btn-primary" onclick="continueSkip()">➡️ Далее</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -68,6 +75,7 @@
                     document.getElementById('clientInfo').style.display = 'none';
                     document.getElementById('clientActions').style.display = 'block';
                     document.getElementById('commentForm').reset();
+                    document.getElementById('choiceModal').style.display = 'none';
                     commentSaved = false;
                 } else {
                     document.getElementById('clientInfo').innerHTML = '<h2>❌ Нет доступных клиентов</h2>';
@@ -126,14 +134,7 @@
         });
 
         function showChoice() {
-            const html = `
-                <div class="choice-modal">
-                    <h3>Что дальше?</h3>
-                    <button class="btn btn-success" onclick="takeClient()">✅ Взять в работу</button>
-                    <button class="btn btn-primary" onclick="continueSkip()">➡️ Далее</button>
-                </div>
-            `;
-            document.getElementById('clientActions').innerHTML += html;
+            document.getElementById('choiceModal').style.display = 'block';
         }
 
         async function takeClient() {
