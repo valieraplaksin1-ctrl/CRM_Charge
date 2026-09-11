@@ -5,35 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Клиенты - CRM</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <style>
-        .cooldown-timer {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.9);
-            padding: 30px;
-            border-radius: 10px;
-            text-align: center;
-            z-index: 2000;
-            border: 2px solid #ff6b6b;
-        }
-        .cooldown-timer h3 {
-            color: #ff6b6b;
-            margin-bottom: 20px;
-        }
-        .timer-number {
-            font-size: 48px;
-            font-weight: bold;
-            color: #4CAF50;
-            margin: 20px 0;
-        }
-        .quick-actions button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-    </style>
 </head>
 <body class="dark-theme">
     <div class="container">
@@ -89,13 +60,6 @@
         </div>
     </div>
 
-    <!-- Таймер ожидания 15 секунд -->
-    <div id="cooldownTimer" class="cooldown-timer">
-        <h3>⏱️ Подождите перед следующим действием</h3>
-        <div class="timer-number" id="timerDisplay">15</div>
-        <p>Повторное действие через:</p>
-    </div>
-
     <script>
         let currentClient = null;
         let commentSaved = false;
@@ -114,7 +78,6 @@
                     document.getElementById('commentForm').reset();
                     document.getElementById('choiceModal').style.display = 'none';
                     commentSaved = false;
-                    updateSkipButtonState();
                 } else {
                     document.getElementById('clientInfo').innerHTML = '<h2>❌ Нет доступных клиентов</h2>';
                     document.getElementById('clientActions').style.display = 'none';
@@ -124,40 +87,12 @@
             }
         }
 
-        function updateSkipButtonState() {
-            const now = Date.now();
-            const timeSinceLastSkip = now - lastSkipTime;
-            const cooldownTime = 15000; // 15 секунд в миллисекундах
-            
-            if (timeSinceLastSkip < cooldownTime) {
-                const remaining = Math.ceil((cooldownTime - timeSinceLastSkip) / 1000);
-                document.getElementById('skipBtn').disabled = true;
-                document.getElementById('noAnswerBtn').disabled = true;
-                showCooldownTimer(remaining);
-                
-                // Проверяем состояние кнопок каждую секунду
-                setTimeout(() => {
-                    updateSkipButtonState();
-                }, 1000);
-            } else {
-                document.getElementById('skipBtn').disabled = false;
-                document.getElementById('noAnswerBtn').disabled = false;
-                document.getElementById('cooldownTimer').style.display = 'none';
-            }
-        }
-
-        function showCooldownTimer(remaining) {
-            document.getElementById('cooldownTimer').style.display = 'block';
-            document.getElementById('timerDisplay').textContent = remaining;
-        }
-
         async function skipClient() {
             const now = Date.now();
             const timeSinceLastSkip = now - lastSkipTime;
             
             if (timeSinceLastSkip < 15000) {
-                const remaining = Math.ceil((15000 - timeSinceLastSkip) / 1000);
-                showCooldownTimer(remaining);
+                alert('❌ Можно пропускать клиентов не раньше чем раз в 15 секунд');
                 return;
             }
             
@@ -170,10 +105,6 @@
                 });
                 
                 lastSkipTime = Date.now();
-                document.getElementById('skipBtn').disabled = true;
-                document.getElementById('noAnswerBtn').disabled = true;
-                showCooldownTimer(15);
-                
                 loadCurrentClient();
             } catch (err) {
                 console.error(err);
@@ -185,8 +116,7 @@
             const timeSinceLastSkip = now - lastSkipTime;
             
             if (timeSinceLastSkip < 15000) {
-                const remaining = Math.ceil((15000 - timeSinceLastSkip) / 1000);
-                showCooldownTimer(remaining);
+                alert('❌ Можно пропускать клиентов не раньше чем раз в 15 секунд');
                 return;
             }
             
@@ -199,10 +129,6 @@
                 });
                 
                 lastSkipTime = Date.now();
-                document.getElementById('skipBtn').disabled = true;
-                document.getElementById('noAnswerBtn').disabled = true;
-                showCooldownTimer(15);
-                
                 loadCurrentClient();
             } catch (err) {
                 console.error(err);
