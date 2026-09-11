@@ -99,7 +99,7 @@
     <script>
         let currentClient = null;
         let commentSaved = false;
-        let cooldownActive = false;
+        let lastSkipTime = 0;
 
         async function loadCurrentClient() {
             try {
@@ -114,6 +114,7 @@
                     document.getElementById('commentForm').reset();
                     document.getElementById('choiceModal').style.display = 'none';
                     commentSaved = false;
+                    updateSkipButtonState();
                 } else {
                     document.getElementById('clientInfo').innerHTML = '<h2>❌ Нет доступных клиентов</h2>';
                     document.getElementById('clientActions').style.display = 'none';
@@ -123,53 +124,40 @@
             }
         }
 
-        async function checkCooldown() {
-            try {
-                const response = await fetch('/api/clients', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: 'check_cooldown'})
-                });
+        function updateSkipButtonState() {
+            const now = Date.now();
+            const timeSinceLastSkip = now - lastSkipTime;
+            const cooldownTime = 15000; // 15 секунд в миллисекундах
+            
+            if (timeSinceLastSkip < cooldownTime) {
+                const remaining = Math.ceil((cooldownTime - timeSinceLastSkip) / 1000);
+                document.getElementById('skipBtn').disabled = true;
+                document.getElementById('noAnswerBtn').disabled = true;
+                showCooldownTimer(remaining);
                 
-                if (response.ok) {
-                    const data = await response.json();
-                    return data.allowed;
-                }
-            } catch (err) {
-                console.error(err);
+                // Проверяем состояние кнопок каждую секунду
+                setTimeout(() => {
+                    updateSkipButtonState();
+                }, 1000);
+            } else {
+                document.getElementById('skipBtn').disabled = false;
+                document.getElementById('noAnswerBtn').disabled = false;
+                document.getElementById('cooldownTimer').style.display = 'none';
             }
-            return true;
         }
 
-        function showCooldownTimer(seconds) {
-            cooldownActive = true;
-            document.getElementById('skipBtn').disabled = true;
-            document.getElementById('noAnswerBtn').disabled = true;
+        function showCooldownTimer(remaining) {
             document.getElementById('cooldownTimer').style.display = 'block';
-            
-            let remaining = seconds;
             document.getElementById('timerDisplay').textContent = remaining;
-            
-            const interval = setInterval(() => {
-                remaining--;
-                document.getElementById('timerDisplay').textContent = remaining;
-                
-                if (remaining <= 0) {
-                    clearInterval(interval);
-                    document.getElementById('cooldownTimer').style.display = 'none';
-                    document.getElementById('skipBtn').disabled = false;
-                    document.getElementById('noAnswerBtn').disabled = false;
-                    cooldownActive = false;
-                }
-            }, 1000);
         }
 
         async function skipClient() {
-            if (cooldownActive) return;
+            const now = Date.now();
+            const timeSinceLastSkip = now - lastSkipTime;
             
-            const allowed = await checkCooldown();
-            if (!allowed) {
-                showCooldownTimer(15);
+            if (timeSinceLastSkip < 15000) {
+                const remaining = Math.ceil((15000 - timeSinceLastSkip) / 1000);
+                showCooldownTimer(remaining);
                 return;
             }
             
@@ -180,19 +168,25 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({action: 'skip', client_id: currentClient.id})
                 });
+                
+                lastSkipTime = Date.now();
+                document.getElementById('skipBtn').disabled = true;
+                document.getElementById('noAnswerBtn').disabled = true;
                 showCooldownTimer(15);
-                setTimeout(() => loadCurrentClient(), 15000);
+                
+                loadCurrentClient();
             } catch (err) {
                 console.error(err);
             }
         }
 
         async function noAnswerClient() {
-            if (cooldownActive) return;
+            const now = Date.now();
+            const timeSinceLastSkip = now - lastSkipTime;
             
-            const allowed = await checkCooldown();
-            if (!allowed) {
-                showCooldownTimer(15);
+            if (timeSinceLastSkip < 15000) {
+                const remaining = Math.ceil((15000 - timeSinceLastSkip) / 1000);
+                showCooldownTimer(remaining);
                 return;
             }
             
@@ -203,8 +197,13 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({action: 'skip', client_id: currentClient.id})
                 });
+                
+                lastSkipTime = Date.now();
+                document.getElementById('skipBtn').disabled = true;
+                document.getElementById('noAnswerBtn').disabled = true;
                 showCooldownTimer(15);
-                setTimeout(() => loadCurrentClient(), 15000);
+                
+                loadCurrentClient();
             } catch (err) {
                 console.error(err);
             }
