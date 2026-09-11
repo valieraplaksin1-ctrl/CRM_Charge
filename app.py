@@ -5,6 +5,7 @@ from database import *
 import os
 import time
 from functools import wraps
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'crm_secret_key_2024'
@@ -98,6 +99,13 @@ def admin():
             shift_time = get_today_shift(user_id)
             return jsonify({'calls': calls_today, 'shift_time': shift_time})
         
+        elif action == 'get_user_activity':
+            user_id = data.get('user_id')
+            activity = get_user_activity_by_day(user_id)
+            return jsonify({'activity': [
+                {'day': a[0], 'calls': a[1], 'shift_time': a[2]} for a in activity
+            ]})
+        
         elif action == 'get_user_clients':
             user_id = data.get('user_id')
             working_clients = get_working_clients(user_id)
@@ -188,6 +196,8 @@ def clients_api():
         client_id = data.get('client_id')
         
         if action == 'skip':
+            # Логируем активность (звонок)
+            log_activity(user_id, 'skip', client_id)
             # Получить следующего клиента (текущий остается available)
             client = get_available_clients()
             if client:
@@ -203,6 +213,8 @@ def clients_api():
         elif action == 'add_comment':
             comment = data.get('comment')
             add_comment(client_id, user_id, comment)
+            # Логируем активность (звонок с комментарием)
+            log_activity(user_id, 'comment', client_id)
             return jsonify({'success': True})
         
         elif action == 'take':
@@ -220,6 +232,16 @@ def clients_api():
             if client:
                 set_current_client(user_id, client[0])
             return jsonify({'success': True})
+        
+        elif action == 'check_cooldown':
+            # Проверить можно ли нажимать кнопку (таймер 15 сек)
+            last_activity = get_last_activity_time(user_id)
+            if last_activity:
+                last_time = datetime.fromisoformat(last_activity)
+                time_diff = (datetime.now() - last_time).total_seconds()
+                if time_diff < 15:
+                    return jsonify({'allowed': False, 'wait_seconds': int(15 - time_diff)})
+            return jsonify({'allowed': True})
     
     return jsonify({'success': False}), 400
 
