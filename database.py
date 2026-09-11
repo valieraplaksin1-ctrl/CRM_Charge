@@ -47,7 +47,7 @@ def init_db():
         )
     ''')
     
-    # Таблица комментариев
+    # Таблица комментариев (звонков/контактов)
     c.execute('''
         CREATE TABLE IF NOT EXISTS comments (
             id INTEGER PRIMARY KEY,
@@ -67,6 +67,19 @@ def init_db():
             id INTEGER PRIMARY KEY,
             user_id INTEGER UNIQUE NOT NULL,
             client_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id),
+            FOREIGN KEY(client_id) REFERENCES clients(id)
+        )
+    ''')
+    
+    # Таблица активности (для подробной статистики)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS activity (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            activity_type TEXT NOT NULL,
+            client_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id),
             FOREIGN KEY(client_id) REFERENCES clients(id)
@@ -211,17 +224,17 @@ def get_shift_duration(user_id):
     return int(duration)
 
 def get_today_shift(user_id):
-    """Получить смену за сегодня"""
+    """Получить смену за сегодня (после 6:00 утра текущего дня)"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''
-        SELECT SUM(CAST((julianday(end_time) - julianday(start_time)) * 86400 AS INTEGER))
+        SELECT SUM(CAST((julianday(COALESCE(end_time, 'now')) - julianday(start_time)) * 86400 AS INTEGER))
         FROM shifts
-        WHERE user_id = ? AND DATE(start_time) = DATE('now')
+        WHERE user_id = ? AND DATE(start_time) = DATE('now') AND TIME(start_time) >= '06:00:00'
     ''', (user_id,))
     result = c.fetchone()
     conn.close()
-    return result[0] if result[0] else 0
+    return result[0] if result and result[0] else 0
 
 def add_client(name, phone, email):
     """Добавить клиента"""
@@ -322,6 +335,15 @@ def add_comment(client_id, user_id, comment):
     conn.commit()
     conn.close()
 
+def log_activity(user_id, activity_type, client_id=None):
+    """Логировать активность агента (звонок, skip, etc)"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('INSERT INTO activity (user_id, activity_type, client_id) VALUES (?, ?, ?)', 
+              (user_id, activity_type, client_id))
+    conn.commit()
+    conn.close()
+
 def get_comments(client_id):
     """Получить комментарии к клиенту"""
     conn = sqlite3.connect(DB_PATH)
@@ -359,16 +381,64 @@ def get_username(user_id):
     return result[0] if result else 'Unknown'
 
 def count_user_calls_today(user_id):
-    """Считать количество клиентов прозвонено сегодня (комментарии + пропуски)"""
+    """Считать количество звонков сегодня (после 6:00 утра)"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''
-        SELECT COUNT(*) FROM comments 
-        WHERE user_id = ? AND DATE(created_at) = DATE('now')
+        SELECT COUNT(*) FROM activity 
+        WHERE user_id = ? AND activity_type IN ('comment', 'skip') 
+        AND DATE(created_at) = DATE('now') AND TIME(created_at) >= '06:00:00'
     ''', (user_id,))
     result = c.fetchone()
     conn.close()
     return result[0] if result else 0
+
+def get_user_activity_by_day(user_id, date_str=None):
+    """Получить активность агента по дням"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    if date_str:
+        # За конкретный день
+        c.execute('''
+            SELECT 
+                DATE(created_at) as day,
+                COUNT(CASE WHEN activity_type IN ('comment', 'skip') THEN 1 END) as calls,
+                COALESCE(SUM(CAST((julianday(end_time) - julianday(start_time)) * 86400 AS INTEGER)), 0) as shift_time
+            FROM (
+                SELECT created_at, activity_type, NULL as end_time, NULL as start_time FROM activity WHERE user_id = ? AND DATE(created_at) = ?
+                UNION ALL
+                SELECT NULL, NULL, end_time, start_time FROM shifts WHERE user_id = ? AND DATE(start_time) = ?
+            )
+            GROUP BY DATE(created_at)
+        ''', (user_id, date_str, user_id, date_str))
+    else:
+        # За последние 7 дней
+        c.execute('''
+            SELECT 
+                DATE(a.created_at) as day,
+                COUNT(a.id) as calls,
+                COALESCE(SUM(CAST((julianday(s.end_time) - julianday(s.start_time)) * 86400 AS INTEGER)), 0) as shift_time
+            FROM activity a
+            LEFT JOIN shifts s ON a.user_id = s.user_id AND DATE(a.created_at) = DATE(s.start_time)
+            WHERE a.user_id = ? AND a.activity_type IN ('comment', 'skip')
+            AND a.created_at >= datetime('now', '-7 days')
+            GROUP BY DATE(a.created_at)
+            ORDER BY day DESC
+        ''', (user_id,))
+    
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_last_activity_time(user_id):
+    """Получить время последней активности агента (для таймера 15 сек)"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT created_at FROM activity WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', (user_id,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else None
 
 def get_client_comments(client_id):
     """Получить все комментарии к конкретному клиенту с именами пользователей"""
