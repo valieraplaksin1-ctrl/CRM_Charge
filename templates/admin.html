@@ -96,6 +96,29 @@
             margin: 3px 0;
             color: #bbb;
         }
+        .activity-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #333;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+        .activity-table th {
+            background: #444;
+            padding: 12px;
+            text-align: left;
+            color: #4CAF50;
+            border-bottom: 2px solid #555;
+        }
+        .activity-table td {
+            padding: 12px;
+            border-bottom: 1px solid #444;
+            color: #ccc;
+        }
+        .activity-table tr:hover {
+            background: #3a3a3a;
+        }
         .modal {
             display: none;
             position: fixed;
@@ -126,6 +149,10 @@
             cursor: pointer;
             color: #fff;
         }
+        .time-format {
+            color: #2196F3;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body class="dark-theme">
@@ -147,6 +174,7 @@
             <div class="admin-tabs">
                 <button class="admin-tab-btn active" onclick="switchAdminTab('users')">👥 Пользователи</button>
                 <button class="admin-tab-btn" onclick="switchAdminTab('stats')">📊 Статистика</button>
+                <button class="admin-tab-btn" onclick="switchAdminTab('activity')">📈 Активность по дням</button>
             </div>
 
             <!-- Управление пользователями -->
@@ -168,8 +196,14 @@
 
             <!-- Статистика -->
             <div id="statsTab" class="admin-tab-content">
-                <h2>Статистика агентов</h2>
+                <h2>Статистика агентов (за сегодня после 6:00)</h2>
                 <div id="statsList"></div>
+            </div>
+
+            <!-- Активность по дням -->
+            <div id="activityTab" class="admin-tab-content">
+                <h2>Активность агентов по дням</h2>
+                <div id="activityList"></div>
             </div>
         </div>
     </div>
@@ -180,6 +214,24 @@
             <span class="modal-close" onclick="closeClientsModal()">&times;</span>
             <h2 id="modalUserName"></h2>
             <div id="modalClientsList"></div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для активности -->
+    <div id="activityModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeActivityModal()">&times;</span>
+            <h2 id="modalActivityUserName"></h2>
+            <table class="activity-table">
+                <thead>
+                    <tr>
+                        <th>День</th>
+                        <th>Звонков</th>
+                        <th>Время на линии</th>
+                    </tr>
+                </thead>
+                <tbody id="modalActivityList"></tbody>
+            </table>
         </div>
     </div>
 
@@ -331,6 +383,12 @@
             document.getElementById('clientsModal').classList.remove('active');
         }
 
+        function formatTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}ч ${minutes}м`;
+        }
+
         async function loadStats() {
             let html = '';
             for (const user of users) {
@@ -351,14 +409,15 @@
                                 <h3>${user.username}</h3>
                                 <div class="stats-row">
                                     <div class="stats">
-                                        <p>📞 Прозвонено сегодня:</p>
+                                        <p>📞 Звонков сегодня:</p>
                                         <h2 style="color: #4CAF50; margin: 10px 0;">${stats.calls}</h2>
                                     </div>
                                     <div class="stats">
-                                        <p>⏱️ Время смены:</p>
+                                        <p>⏱️ Время на линии:</p>
                                         <h2 style="color: #2196F3; margin: 10px 0;">${shiftHours}ч ${shiftMinutes}м</h2>
                                     </div>
                                 </div>
+                                <button class="btn btn-info" onclick="viewUserActivity(${user.id}, '${user.username}')">📈 История по дням</button>
                             </div>
                         `;
                     }
@@ -367,6 +426,76 @@
                 }
             }
             document.getElementById('statsList').innerHTML = html || '<p>Нет данных</p>';
+        }
+
+        async function loadActivity() {
+            let html = '';
+            for (const user of users) {
+                try {
+                    const response = await fetch('/admin', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({action: 'get_user_activity', password: adminPassword, user_id: user.id})
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        html += `
+                            <div class="user-card">
+                                <h3>${user.username}</h3>
+                                <button class="btn btn-primary" onclick="viewUserActivity(${user.id}, '${user.username}')">📊 Показать детали</button>
+                            </div>
+                        `;
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+            document.getElementById('activityList').innerHTML = html || '<p>Нет данных</p>';
+        }
+
+        async function viewUserActivity(userId, userName) {
+            try {
+                const response = await fetch('/admin', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'get_user_activity', password: adminPassword, user_id: userId})
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('modalActivityUserName').textContent = `История ${userName}`;
+                    
+                    let activityHtml = '';
+                    if (data.activity.length === 0) {
+                        activityHtml = '<tr><td colspan="3">Нет данных</td></tr>';
+                    } else {
+                        data.activity.forEach(record => {
+                            const shiftTime = record.shift_time || 0;
+                            const hours = Math.floor(shiftTime / 3600);
+                            const minutes = Math.floor((shiftTime % 3600) / 60);
+                            
+                            activityHtml += `
+                                <tr>
+                                    <td>${record.day}</td>
+                                    <td><strong>${record.calls}</strong> звонков</td>
+                                    <td><span class="time-format">${hours}ч ${minutes}м</span></td>
+                                </tr>
+                            `;
+                        });
+                    }
+                    
+                    document.getElementById('modalActivityList').innerHTML = activityHtml;
+                    document.getElementById('activityModal').classList.add('active');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function closeActivityModal() {
+            document.getElementById('activityModal').classList.remove('active');
         }
 
         document.getElementById('addUserForm').addEventListener('submit', async (e) => {
@@ -410,14 +539,20 @@
             
             if (tab === 'stats') {
                 loadStats();
+            } else if (tab === 'activity') {
+                loadActivity();
             }
         }
 
-        // Закрываем модальное окно при клике вне его
+        // Закрываем модальные окна при клике вне их
         window.onclick = function(event) {
-            const modal = document.getElementById('clientsModal');
-            if (event.target === modal) {
-                modal.classList.remove('active');
+            const clientsModal = document.getElementById('clientsModal');
+            const activityModal = document.getElementById('activityModal');
+            if (event.target === clientsModal) {
+                clientsModal.classList.remove('active');
+            }
+            if (event.target === activityModal) {
+                activityModal.classList.remove('active');
             }
         }
     </script>
