@@ -359,7 +359,7 @@ def get_username(user_id):
     return result[0] if result else 'Unknown'
 
 def count_user_calls_today(user_id):
-    """Считать количество клиентов прозвонено сегодня"""
+    """Считать количество клиентов прозвонено сегодня (комментарии + пропуски)"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''
@@ -369,3 +369,18 @@ def count_user_calls_today(user_id):
     result = c.fetchone()
     conn.close()
     return result[0] if result else 0
+
+def get_client_comments(client_id):
+    """Получить все комментарии к конкретному клиенту с именами пользователей"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        SELECT u.username, c.comment, c.created_at
+        FROM comments c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.client_id = ?
+        ORDER BY c.created_at DESC
+    ''', (client_id,))
+    results = c.fetchall()
+    conn.close()
+    return results
